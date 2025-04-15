@@ -1,0 +1,358 @@
+/**
+ * Stilar för Thaibooklet admin
+ */
+
+/* Grundläggande stilar */
+.thaibooklet-admin {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+.thaibooklet-admin * {
+    box-sizing: border-box;
+}
+
+.thaibooklet-admin-content {
+    margin-top: 20px;
+}
+
+/* Dashboard */
+.thaibooklet-dashboard {
+    margin-top: 20px;
+}
+
+.thaibooklet-dashboard-row {
+    display: flex;
+    flex-wrap: wrap;
+    margin: 0 -10px 20px;
+}
+
+.thaibooklet-card {
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+    flex: 1;
+    margin: 0 10px 20px;
+    min-width: 300px;
+    padding: 20px;
+}
+
+.thaibooklet-card h2 {
+    margin-top: 0;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    align-items: center;
+    font-size: 16px;
+}
+
+.thaibooklet-card h2 .dashicons {
+    margin-right: 8px;
+    color: #0073aa;
+}
+
+.thaibooklet-stats-grid {
+    display: flex;
+    flex-wrap: wrap;
+    margin: 15px 0;
+}
+
+.thaibooklet-stat-item {
+    padding: 10px 15px;
+    text-align: center;
+    flex: 1;
+    min-width: 100px;
+}
+
+.thaibooklet-stat-number {
+    display: block;
+    font-size: 24px;
+    font-weight: 600;
+    margin-bottom: 5px;
+    color: #0073aa;
+}
+
+.thaibooklet-stat-title {
+    font-size: 13px;
+    color: #666;
+}
+
+.thaibooklet-stats-footer {
+    margin-top: 15px;
+    text-align: right;
+    border-top: 1px solid #eee;
+    padding-top: 15px;
+}
+
+.thaibooklet-no-data {
+    color: #666;
+    font-style: italic;
+    text-align: center;
+    padding: 20px;
+}
+
+.thaibooklet-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.thaibooklet-table th {
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: 1px solid #ccd0d4;
+}
+
+.thaibooklet-table td {
+    padding: 12px;
+    border-bottom: 1px solid #f0f0f0;
+    vertical-align: middle;
+}
+
+.thaibooklet-table tr:last-child td {
+    border-bottom: none;
+}
+
+.thaibooklet-count-column {
+    text-align: center;
+    font-weight: 600;
+}
+
+.thaibooklet-quick-actions {
+    display: flex;
+    flex-wrap: wrap;
+    margin: 10px -5px;
+}
+
+.thaibooklet-action-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f8f8f8;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    color: #333;
+    padding: 10px 15px;
+    margin: 5px;
+    flex: 1;
+    text-decoration: none;
+    transition: all 0.2s ease;
+}
+
+.thaibooklet-action-button:hover {
+    background: #f0f0f0;
+    border-color: #ccc;
+    color: #0073aa;
+}
+
+.thaibooklet-action-button .dashicons {
+    margin-right: 8px;
+    color: #0073aa;
+}
+
+.thaibooklet-system-info {
+    width: 100%;
+}
+
+.thaibooklet-system-info th {
+    text-align: left;
+    padding: 8px 0;
+    width: 140px;
+    font-weight: 600;
+    color: #444;
+}
+
+.thaibooklet-system-info td {
+    padding: 8px 0;
+    color: #666;
+}
+
+/* Tabeller */
+.thaibooklet-no-items {
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+    padding: 40px;
+    text-align: center;
+}
+
+.thaibooklet-no-items p {
+    font-size: 16px;
+    color: #666;
+    margin-bottom: 20px;
+}
+
+.thaibooklet-status {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.thaibooklet-status-active {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.thaibooklet-status-inactive {
+    background-color: #f8f9fa;
+    color: #6c757d;
+}
+
+.thaibooklet-status-upcoming {
+    background-color: #cce5ff;
+    color: #004085;
+}
+
+.thaibooklet-status-expired {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+.thaibooklet-actions {
+    display: flex;
+    align-items: center;
+}
+
+.thaibooklet-actions .button {
+    margin-right: 5px;
+}
+
+.thaibooklet-actions .dashicons {
+    margin: 0;
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+}
+
+/* Formulär */
+.thaibooklet-form {
+    background: #fff;
+    border: 1px solid #ccd0d4;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+    padding: 20px;
+    margin-top: 20px;
+}
+
+.thaibooklet-form-row {
+    display: flex;
+    flex-wrap: wrap;
+    margin: 0 -10px;
+}
+
+.thaibooklet-form-col {
+    flex: 1;
+    padding: 0 10px;
+    min-width: 250px;
+}
+
+.thaibooklet-form-group {
+    margin-bottom: 20px;
+}
+
+.thaibooklet-form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+.thaibooklet-form-group input[type="text"],
+.thaibooklet-form-group input[type="number"],
+.thaibooklet-form-group input[type="date"],
+.thaibooklet-form-group input[type="email"],
+.thaibooklet-form-group input[type="url"],
+.thaibooklet-form-group select,
+.thaibooklet-form-group textarea {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+}
+
+.thaibooklet-checkbox-label {
+    display: flex;
+    align-items: center;
+    font-weight: 600;
+}
+
+.thaibooklet-checkbox-label input[type="checkbox"] {
+    margin-right: 8px;
+}
+
+.thaibooklet-price-input {
+    display: flex;
+    align-items: center;
+}
+
+.thaibooklet-currency {
+    margin-left: 8px;
+    color: #666;
+}
+
+.thaibooklet-form-actions {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid #eee;
+    text-align: right;
+}
+
+.thaibooklet-form-actions .button {
+    margin-left: 10px;
+}
+
+.required {
+    color: #d63638;
+}
+
+.thaibooklet-info-box {
+    background-color: #f8f9fa;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    padding: 15px;
+}
+
+.thaibooklet-info-box h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    font-size: 14px;
+}
+
+.thaibooklet-stats-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.thaibooklet-stats-list li {
+    padding: 8px 0;
+    border-bottom: 1px solid #eee;
+}
+
+.thaibooklet-stats-list li:last-child {
+    border-bottom: none;
+}
+
+.thaibooklet-view-link {
+    float: right;
+    text-decoration: none;
+}
+
+/* Responsivitet */
+@media screen and (max-width: 782px) {
+    .thaibooklet-form-row {
+        flex-direction: column;
+    }
+    
+    .thaibooklet-card {
+        margin-bottom: 20px;
+    }
+    
+    .thaibooklet-stat-item {
+        min-width: 50%;
+    }
+    
+    .thaibooklet-stats-list li {
+        padding: 12px 0;
+    }
+}
