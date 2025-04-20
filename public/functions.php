@@ -403,3 +403,365 @@ function getCategory($db, $id) {
     $stmt->execute([$id]);
     return $stmt->fetch(PDO::FETCH_ASSOC);
 }
+// QR-kod funktioner
+function verifyQRCoupon($db, $code) {
+    // Parsa QR-koden för att få edition, kupong och användare
+    if (!preg_match('/^THBOOKLET-E(\d+)-C(\d+)(?:-U(\d+))?$/', $code, $matches)) {
+        return ['success' => false, 'message' => 'Ogiltigt kodformat.'];
+    }
+    
+    $editionId = (int) $matches[1];
+    $couponId = (int) $matches[2];
+    $userId = isset($matches[3]) ? (int) $matches[3] : null;
+    
+    try {
+        // Hämta kupongdetaljer
+        $stmt = $db->prepare("
+            SELECT c.*, e.title as edition_title, e.valid_until, co.name as company_name
+            FROM coupons c
+            JOIN editions e ON c.edition_id = e.id
+            JOIN companies co ON c.company_id = co.id
+            WHERE c.id = ? AND c.edition_id = ?
+        ");
+        
+        $stmt->execute([$couponId, $editionId]);
+        $coupon = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$coupon) {
+            return ['success' => false, 'message' => 'Kupongen hittades inte.'];
+        }
+        
+        // Om användare är specificerad, kontrollera om de har tillgång till editionen
+        if ($userId) {
+            $stmt = $db->prepare("
+                SELECT * FROM user_editions 
+                WHERE user_id = ? AND edition_id = ?
+            ");
+            
+            $stmt->execute([$userId, $editionId]);
+            $userEdition = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$userEdition) {
+                return ['success' => false, 'message' => 'Användaren har inte tillgång till denna edition.'];
+            }
+            
+            // Hämta användarinformation
+            $stmt = $db->prepare("SELECT id, email, name FROM users WHERE id = ?");
+            $stmt->execute([$userId]);
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        }
+        
+        // Hämta användningshistorik
+        $stmt = $db->prepare("
+            SELECT * FROM coupon_uses 
+            WHERE coupon_id = ? AND user_id = ?
+            ORDER BY used_at DESC
+        ");
+        
+        $stmt->execute([
+            $couponId,
+            $userId ?: 0
+        ]);
+        
+        $redemptions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Kontrollera om kupongen fortfarande är giltig
+        $isValid = true;
+        $invalidReason = null;
+        
+        // Kontrollera status
+        if ($coupon['status'] !== 'active') {
+            $isValid = false;
+            $invalidReason = "Kupongen är inte aktiv.";
+        }
+        
+        // Kontrollera utgångsdatum
+        if ($coupon['valid_until'] && strtotime($coupon['valid_until']) < time()) {
+            $isValid = false;
+            $invalidReason = "Kupongen har gått ut.";
+        }
+        
+        // Kontrollera användningsgräns
+        if ($coupon['max_uses'] && count($redemptions) >= $coupon['max_uses']) {
+            $isValid = false;
+            $invalidReason = "Kupongen har redan använts maximalt antal gånger.";
+        }
+        
+        // Formatera användningshistorik
+        $formattedRedemptions = array_map(function($r) {
+            return [
+                'id' => $r['id'],
+                'date' => date('Y-m-d', strtotime($r['used_at'])),
+                'time' => date('H:i', strtotime($r['used_at'])),
+                'verification_code' => $r['verification_code'],
+                'notes' => $r['notes']
+            ];
+        }, $redemptions);
+        
+        // Formatera svaret
+        return [
+            'success' => true,
+            'coupon' => [
+                'id' => $coupon['id'],
+                'title' => $coupon['title'],
+                'description' => $coupon['description'],
+                'value' => $coupon['value'],
+                'company' => $coupon['company_name'],
+                'edition' => $coupon['edition_title'],
+                'edition_id' => $coupon['edition_id'],
+                'valid_until' => $coupon['valid_until'],
+                'max_uses' => $coupon['max_uses'],
+                'current_uses' => count($redemptions),
+                'status' => $coupon['status'],
+                'terms' => $coupon['terms'],
+                'valid' => $isValid,
+                'invalid_reason' => $invalidReason,
+                'full_code' => $code
+            ],
+            'user' => $userId ? [
+                'id' => $user['id'],
+                'name' => $user['name'],
+                'email' => $user['email']
+            ] : null,
+            'redemptions' => $formattedRedemptions
+        ];
+        
+    } catch (PDOException $e) {
+        return ['success' => false, 'message' => 'Databasfel vid verifiering.', 'error' => $e->getMessage()];
+    }
+}
+
+function redeemQRCoupon($db, $code, $staff, $notes = null) {
+    // Parsa QR-koden för att få edition, kupong och användare
+    if (!preg_match('/^THBOOKLET-E(\d+)-C(\d+)(?:-U(\d+))?$/', $code, $matches)) {
+        return ['success' => false, 'message' => 'Ogiltigt kodformat.'];
+    }
+    
+    $editionId = (int) $matches[1];
+    $couponId = (int) $matches[2];
+    $userId = isset($matches[3]) ? (int) $matches[3] : 0; // 0 om ingen användare angavs
+    
+    try {
+        // Börja en transaktion för att säkerställa att allt går bra
+        $db->beginTransaction();
+        
+        // Hämta kupongdetaljer
+        $stmt = $db->prepare("
+            SELECT c.*, e.title as edition_title, e.valid_until
+            FROM coupons c
+            JOIN editions e ON c.edition_id = e.id
+            WHERE c.id = ? AND c.edition_id = ?
+        ");
+        
+        $stmt->execute([$couponId, $editionId]);
+        $coupon = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$coupon) {
+            $db->rollBack();
+            return ['success' => false, 'message' => 'Kupongen hittades inte.'];
+        }
+        
+        // Om användare är specificerad (och inte 0), kontrollera om de har tillgång till editionen
+        if ($userId > 0) {
+            $stmt = $db->prepare("
+                SELECT * FROM user_editions 
+                WHERE user_id = ? AND edition_id = ?
+            ");
+            
+            $stmt->execute([$userId, $editionId]);
+            $userEdition = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$userEdition) {
+                $db->rollBack();
+                return ['success' => false, 'message' => 'Användaren har inte tillgång till denna edition.'];
+            }
+        }
+        
+        // Hämta användningshistorik
+        $stmt = $db->prepare("
+            SELECT COUNT(*) as use_count FROM coupon_uses 
+            WHERE coupon_id = ? AND user_id = ?
+        ");
+        
+        $stmt->execute([$couponId, $userId]);
+        $useCount = $stmt->fetch(PDO::FETCH_ASSOC)['use_count'];
+        
+        // Kontrollera om kupongen fortfarande är giltig
+        $isValid = true;
+        $invalidReason = null;
+        
+        // Kontrollera status
+        if ($coupon['status'] !== 'active') {
+            $isValid = false;
+            $invalidReason = "Kupongen är inte aktiv.";
+        }
+        
+        // Kontrollera utgångsdatum
+        if ($coupon['valid_until'] && strtotime($coupon['valid_until']) < time()) {
+            $isValid = false;
+            $invalidReason = "Kupongen har gått ut.";
+        }
+        
+        // Kontrollera användningsgräns
+        if ($coupon['max_uses'] && $useCount >= $coupon['max_uses']) {
+            $isValid = false;
+            $invalidReason = "Kupongen har redan använts maximalt antal gånger.";
+        }
+        
+        if (!$isValid) {
+            $db->rollBack();
+            return ['success' => false, 'message' => $invalidReason];
+        }
+        
+        // Generera verifieringskod
+        $verificationCode = strtoupper(substr(md5(uniqid(rand(), true)), 0, 8));
+        
+        // Registrera användning
+        $stmt = $db->prepare("
+            INSERT INTO coupon_uses (coupon_id, user_id, used_at, verification_code, notes)
+            VALUES (?, ?, NOW(), ?, ?)
+        ");
+        
+        $stmt->execute([$couponId, $userId, $verificationCode, $notes]);
+        $useId = $db->lastInsertId();
+        
+        // Uppdatera kupong-counts
+        $stmt = $db->prepare("
+            UPDATE coupons 
+            SET current_uses = current_uses + 1 
+            WHERE id = ?
+        ");
+        
+        $stmt->execute([$couponId]);
+        
+        // Slutför transaktionen
+        $db->commit();
+        
+        // Formatera svaret
+        return [
+            'success' => true,
+            'message' => 'Kupongen har lösts in framgångsrikt!',
+            'redemption' => [
+                'id' => $useId,
+                'coupon_id' => $couponId,
+                'user_id' => $userId,
+                'verification_code' => $verificationCode,
+                'timestamp' => date('Y-m-d H:i:s'),
+                'notes' => $notes
+            ],
+            'coupon' => [
+                'id' => $coupon['id'],
+                'title' => $coupon['title'],
+                'description' => $coupon['description'],
+                'value' => $coupon['value'],
+                'edition_id' => $coupon['edition_id'],
+                'edition_title' => $coupon['edition_title'],
+                'max_uses' => $coupon['max_uses'],
+                'current_uses' => $useCount + 1
+            ]
+        ];
+        
+    } catch (PDOException $e) {
+        if ($db->inTransaction()) {
+            $db->rollBack();
+        }
+        return ['success' => false, 'message' => 'Databasfel vid inlösning.', 'error' => $e->getMessage()];
+    }
+}
+
+function getQRCodesForEdition($db, $editionId, $userId = null) {
+    try {
+        // Kontrollera om editionen finns
+        $stmt = $db->prepare("SELECT * FROM editions WHERE id = ?");
+        $stmt->execute([$editionId]);
+        $edition = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$edition) {
+            return ['success' => false, 'message' => 'Editionen hittades inte.'];
+        }
+        
+        // Hämta alla kuponger för denna edition
+        $stmt = $db->prepare("
+            SELECT c.*, co.name as company_name 
+            FROM coupons c
+            JOIN companies co ON c.company_id = co.id
+            WHERE c.edition_id = ?
+            ORDER BY c.id
+        ");
+        
+        $stmt->execute([$editionId]);
+        $coupons = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Om en användare är angiven, hämta deras information
+        $user = null;
+        if ($userId) {
+            $stmt = $db->prepare("
+                SELECT u.*, ue.purchased_at 
+                FROM users u
+                JOIN user_editions ue ON u.id = ue.user_id
+                WHERE u.id = ? AND ue.edition_id = ?
+            ");
+            
+            $stmt->execute([$userId, $editionId]);
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$user) {
+                return ['success' => false, 'message' => 'Användaren har inte tillgång till denna edition.'];
+            }
+        }
+        
+        // För varje kupong, skapa QR-kodsinformation
+        $qrCodes = [];
+        foreach ($coupons as $coupon) {
+            // Generera QR-kod-värdet
+            $qrValue = "THBOOKLET-E{$editionId}-C{$coupon['id']}";
+            if ($userId) {
+                $qrValue .= "-U{$userId}";
+            }
+            
+            // Hämta användningshistorik om en användare är angiven
+            $redemptions = [];
+            if ($userId) {
+                $stmt = $db->prepare("
+                    SELECT * FROM coupon_uses
+                    WHERE coupon_id = ? AND user_id = ?
+                    ORDER BY used_at DESC
+                ");
+                
+                $stmt->execute([$coupon['id'], $userId]);
+                $redemptions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            }
+            
+            // Lägg till QR-kodsinformation i arrayen
+            $qrCodes[] = [
+                'coupon_id' => $coupon['id'],
+                'title' => $coupon['title'],
+                'company' => $coupon['company_name'],
+                'description' => $coupon['description'],
+                'value' => $coupon['value'],
+                'max_uses' => $coupon['max_uses'],
+                'current_uses' => count($redemptions),
+                'qr_value' => $qrValue
+            ];
+        }
+        
+        // Formatera svaret
+        return [
+            'success' => true,
+            'edition' => [
+                'id' => $edition['id'],
+                'title' => $edition['title'],
+                'description' => $edition['description']
+            ],
+            'user' => $user ? [
+                'id' => $user['id'],
+                'name' => $user['name'],
+                'email' => $user['email']
+            ] : null,
+            'coupons' => $qrCodes
+        ];
+        
+    } catch (PDOException $e) {
+        return ['success' => false, 'message' => 'Databasfel vid generering av QR-koder.', 'error' => $e->getMessage()];
+    }
+}
